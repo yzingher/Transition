@@ -14,11 +14,59 @@ function parseLLMJson(text: string): unknown {
   try {
     return JSON.parse(cleaned);
   } catch {
-    // Open-source models often emit slightly malformed JSON (missing commas,
-    // trailing commas, unclosed arrays). jsonrepair fixes most of these.
+    // Open-source models often emit slightly malformed JSON.
+    // jsonrepair handles missing commas, trailing commas, unclosed arrays, etc.
     const repaired = jsonrepair(cleaned);
     return JSON.parse(repaired);
   }
+}
+
+async function callOpenRouter(
+  apiKey: string,
+  systemPrompt: string,
+  strictness: "normal" | "strict"
+): Promise<string> {
+  const userMessage =
+    strictness === "normal"
+      ? "Generate the response now. Return ONLY the raw JSON object — no markdown fencing, no prose before or after, no code blocks."
+      : "Generate the response now. CRITICAL: Return ONLY a single valid JSON object. Every string must be quoted. Every object key must be quoted. Every array element must be comma-separated. Close every bracket and brace. Do not emit markdown, prose, or code fences. Verify your JSON is syntactically valid before emitting.";
+
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://transition-kappa.vercel.app",
+        "X-Title": "The Transition",
+      },
+      body: JSON.stringify({
+        model: "moonshotai/kimi-k2",
+        max_tokens: 4000,
+        temperature: strictness === "strict" ? 0.4 : 0.7,
+        provider: { sort: "throughput" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `OpenRouter API error: ${response.status} ${errorText.slice(0, 200)}`
+    );
+  }
+
+  const result = await response.json();
+  const content = result.choices?.[0]?.message?.content;
+  if (!content || typeof content !== "string") {
+    throw new Error("No content in OpenRouter response");
+  }
+  return content;
 }
 
 export async function POST(req: NextRequest) {
@@ -40,54 +88,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://transition-kappa.vercel.app",
-        "X-Title": "The Transition",
-      },
-      body: JSON.stringify({
-        model: "moonshotai/kimi-k2",
-        max_tokens: 2500,
-        temperature: 0.7,
-        provider: {
-          sort: "throughput",
+    // First attempt
+    let content = await callOpenRouter(apiKey, systemPrompt, "normal");
+    try {
+      const parsed = parseLLMJson(content);
+      return NextResponse.json(parsed);
+    } catch (firstErr) {
+      console.warn("First JSON parse failed, retrying with strict mode:", firstErr);
+    }
+
+    // Retry with lower temperature and stricter instructions
+    content = await callOpenRouter(apiKey, systemPrompt, "strict");
+    try {
+      const parsed = parseLLMJson(content);
+      return NextResponse.json(parsed);
+    } catch (secondErr) {
+      console.error("Second JSON parse also failed:", secondErr);
+      return NextResponse.json(
+        {
+          error: `LLM returned unparseable JSON after retry: ${
+            secondErr instanceof Error ? secondErr.message : "unknown"
+          }`,
         },
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content:
-              "Generate the response now. Return ONLY the raw JSON object — no markdown fencing, no prose before or after, no code blocks.",
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenRouter API error:", response.status, errorText);
-      return NextResponse.json(
-        { error: `OpenRouter API error: ${response.status} ${errorText.slice(0, 200)}` },
         { status: 500 }
       );
     }
-
-    const result = await response.json();
-
-    const content = result.choices?.[0]?.message?.content;
-    if (!content || typeof content !== "string") {
-      return NextResponse.json(
-        { error: "No content in OpenRouter response" },
-        { status: 500 }
-      );
-    }
-
-    const parsed = parseLLMJson(content);
-
-    return NextResponse.json(parsed);
   } catch (error) {
     console.error("Generate API error:", error);
     const message =
