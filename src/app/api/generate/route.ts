@@ -19,8 +19,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Sanitize API key: phones often replace -- with em-dash when pasting
-    const apiKey = process.env.ANTHROPIC_API_KEY?.replace(/[\u2010-\u2015\u2212]/g, "-");
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
         { error: "ANTHROPIC_API_KEY not configured" },
