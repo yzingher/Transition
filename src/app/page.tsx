@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   GameState,
   Screen,
@@ -30,6 +30,14 @@ import BriefingScreen from "@/components/BriefingScreen";
 import ConsequenceScreen from "@/components/ConsequenceScreen";
 import EndScreen from "@/components/EndScreen";
 
+const LOADING_MESSAGES = [
+  "Analyzing geopolitical context…",
+  "Consulting advisers…",
+  "Drafting options…",
+  "Polling the cabinet…",
+  "Reviewing intelligence briefings…",
+];
+
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("title");
   const [gameState, setGameState] = useState<GameState>(createInitialState);
@@ -39,6 +47,23 @@ export default function Home() {
   const [gameOverReason, setGameOverReason] = useState<"stability" | "relevance" | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Prefetch state — filled while the user reads the consequence screen
+  const prefetchedBriefingRef = useRef<{
+    briefing: BriefingResponse;
+    stateWithResolution: GameState;
+  } | null>(null);
+  const prefetchedEndGameRef = useRef<EndGameResponse | null>(null);
+
+  // Rotating loading messages
+  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+  useEffect(() => {
+    if (!isLoading) return;
+    const interval = setInterval(() => {
+      setLoadingMsgIndex((i) => (i + 1) % LOADING_MESSAGES.length);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isLoading]);
 
   // Start game → advance to turn 1 and fetch briefing
   const handleStart = useCallback(async () => {
@@ -74,6 +99,52 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  // Fire-and-forget prefetch of the next briefing. Runs while user reads consequence.
+  const prefetchNextBriefing = useCallback((stateAfterDecision: GameState) => {
+    const nextTurn = stateAfterDecision.turn + 1;
+    if (nextTurn > 12) return;
+
+    const nextEvent = SCRIPTED_EVENTS[nextTurn - 1];
+    const nextState: GameState = {
+      ...stateAfterDecision,
+      turn: nextTurn,
+      year: nextEvent.year,
+      phase: nextEvent.phase,
+    };
+    const prompt = buildBriefingPrompt(nextState, nextEvent);
+
+    generateBriefing(prompt)
+      .then((briefingData) => {
+        let stateWithResolution = nextState;
+        if (briefingData.resolved_consequences?.length > 0) {
+          stateWithResolution = resolveConsequences(
+            nextState,
+            briefingData.resolved_consequences
+          );
+        }
+        prefetchedBriefingRef.current = {
+          briefing: briefingData,
+          stateWithResolution,
+        };
+      })
+      .catch(() => {
+        // Silently discard — handleNextTurn will fall back to live fetch
+        prefetchedBriefingRef.current = null;
+      });
+  }, []);
+
+  // Fire-and-forget prefetch of the end game (for the final turn).
+  const prefetchEndGame = useCallback((finalState: GameState) => {
+    const prompt = buildEndGamePrompt(finalState);
+    generateEndGame(prompt)
+      .then((data) => {
+        prefetchedEndGameRef.current = data;
+      })
+      .catch(() => {
+        prefetchedEndGameRef.current = null;
+      });
   }, []);
 
   // Player submits a decision
@@ -157,10 +228,15 @@ export default function Home() {
         const gameOver = checkGameOver(newState);
         if (gameOver) {
           setGameOverReason(gameOver);
-          // Go directly to end screen
           await fetchEndGame(newState, gameOver);
         } else {
           setScreen("consequence");
+          // Fire the prefetch for the next turn's content while the user reads
+          if (newState.turn >= 12) {
+            prefetchEndGame(newState);
+          } else {
+            prefetchNextBriefing(newState);
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to process decision");
@@ -168,15 +244,23 @@ export default function Home() {
         setIsLoading(false);
       }
     },
-    [gameState, briefing]
+    [gameState, briefing, prefetchNextBriefing, prefetchEndGame]
   );
 
-  // Fetch end game
+  // Fetch end game (live — when prefetch missing or game-over fired mid-game)
   const fetchEndGame = async (
     state: GameState,
     reason: "stability" | "relevance" | null
   ) => {
     try {
+      // Use prefetched end-game if we have one
+      if (prefetchedEndGameRef.current) {
+        setEndGame(prefetchedEndGameRef.current);
+        prefetchedEndGameRef.current = null;
+        setGameOverReason(reason);
+        setScreen("end");
+        return;
+      }
       const prompt = buildEndGamePrompt(state);
       const endGameData = await generateEndGame(prompt);
       setEndGame(endGameData);
@@ -187,20 +271,34 @@ export default function Home() {
     }
   };
 
-  // Advance to next turn
+  // Advance to next turn — uses prefetched briefing if available
   const handleNextTurn = useCallback(async () => {
     setError(null);
+
+    // Past turn 12 → end game
+    const nextTurnNumber = gameState.turn + 1;
+    if (nextTurnNumber > 12) {
+      setIsLoading(true);
+      await fetchEndGame(gameState, null);
+      setIsLoading(false);
+      return;
+    }
+
+    // Prefetch hit — instant transition
+    if (prefetchedBriefingRef.current) {
+      const { briefing: prefetched, stateWithResolution } =
+        prefetchedBriefingRef.current;
+      prefetchedBriefingRef.current = null;
+      setGameState(stateWithResolution);
+      setBriefing(prefetched);
+      setDecision(null);
+      setScreen("briefing");
+      return;
+    }
+
+    // Prefetch miss — live fetch
     setIsLoading(true);
     try {
-      const nextTurnNumber = gameState.turn + 1;
-
-      // If we've finished turn 12, go to end
-      if (nextTurnNumber > 12) {
-        await fetchEndGame(gameState, null);
-        setIsLoading(false);
-        return;
-      }
-
       const event = SCRIPTED_EVENTS[nextTurnNumber - 1];
       const newState: GameState = {
         ...gameState,
@@ -208,11 +306,9 @@ export default function Home() {
         year: event.year,
         phase: event.phase,
       };
-
       const prompt = buildBriefingPrompt(newState, event);
       const briefingData = await generateBriefing(prompt);
 
-      // Apply resolved consequences
       let stateAfterResolution = newState;
       if (briefingData.resolved_consequences?.length > 0) {
         stateAfterResolution = resolveConsequences(
@@ -235,6 +331,8 @@ export default function Home() {
 
   // Play again
   const handlePlayAgain = useCallback(() => {
+    prefetchedBriefingRef.current = null;
+    prefetchedEndGameRef.current = null;
     setGameState(createInitialState());
     setBriefing(null);
     setDecision(null);
@@ -259,12 +357,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* Loading overlay for initial load */}
-      {isLoading && screen === "title" && (
-        <div className="fixed inset-0 z-[70] bg-navy-900/90 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-6 h-6 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-            <p className="font-mono text-xs text-slate-400">Preparing briefing...</p>
+      {/* Loading overlay — full screen during first briefing and next-turn fallback */}
+      {isLoading && (screen === "title" || screen === "briefing" || screen === "consequence") && (
+        <div className="fixed inset-0 z-[70] bg-navy-900/90 backdrop-blur-sm flex items-center justify-center px-6">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+            <p className="font-mono text-xs text-slate-300 text-center transition-opacity duration-300">
+              {LOADING_MESSAGES[loadingMsgIndex]}
+            </p>
           </div>
         </div>
       )}

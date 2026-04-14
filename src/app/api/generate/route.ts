@@ -19,57 +19,57 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY not configured" },
+        { error: "OPENROUTER_API_KEY not configured" },
         { status: 500 }
       );
     }
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://transition-kappa.vercel.app",
+        "X-Title": "The Transition",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
-        system: systemPrompt,
+        model: "moonshotai/kimi-k2",
+        max_tokens: 2500,
+        temperature: 0.8,
+        response_format: { type: "json_object" },
+        provider: {
+          sort: "throughput",
+        },
         messages: [
-          {
-            role: "user",
-            content: "Generate the response now.",
-          },
+          { role: "system", content: systemPrompt },
+          { role: "user", content: "Generate the response now." },
         ],
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Anthropic API error:", response.status, errorText);
+      console.error("OpenRouter API error:", response.status, errorText);
       return NextResponse.json(
-        { error: `Anthropic API error: ${response.status}` },
+        { error: `OpenRouter API error: ${response.status} ${errorText.slice(0, 200)}` },
         { status: 500 }
       );
     }
 
     const result = await response.json();
 
-    // Extract text content from Claude's response
-    const textBlock = result.content?.find(
-      (block: { type: string }) => block.type === "text"
-    );
-    if (!textBlock?.text) {
+    const content = result.choices?.[0]?.message?.content;
+    if (!content || typeof content !== "string") {
       return NextResponse.json(
-        { error: "No text in Anthropic response" },
+        { error: "No content in OpenRouter response" },
         { status: 500 }
       );
     }
 
-    const cleaned = stripMarkdownFencing(textBlock.text);
+    const cleaned = stripMarkdownFencing(content);
     const parsed = JSON.parse(cleaned);
 
     return NextResponse.json(parsed);

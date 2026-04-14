@@ -11,7 +11,7 @@ interface TypedTextProps {
 
 export default function TypedText({
   text,
-  speed = 8,
+  speed = 3,
   onComplete,
   className = "",
 }: TypedTextProps) {
