@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { jsonrepair } from "jsonrepair";
 
 function stripMarkdownFencing(text: string): string {
   let cleaned = text.trim();
@@ -6,6 +7,18 @@ function stripMarkdownFencing(text: string): string {
     cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
   }
   return cleaned.trim();
+}
+
+function parseLLMJson(text: string): unknown {
+  const cleaned = stripMarkdownFencing(text);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Open-source models often emit slightly malformed JSON (missing commas,
+    // trailing commas, unclosed arrays). jsonrepair fixes most of these.
+    const repaired = jsonrepair(cleaned);
+    return JSON.parse(repaired);
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -72,8 +85,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cleaned = stripMarkdownFencing(content);
-    const parsed = JSON.parse(cleaned);
+    const parsed = parseLLMJson(content);
 
     return NextResponse.json(parsed);
   } catch (error) {

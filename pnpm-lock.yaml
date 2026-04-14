@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      jsonrepair:
+        specifier: ^3.13.3
+        version: 3.13.3
       next:
         specifier: 16.2.3
         version: 16.2.3(@babel/core@7.29.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1388,6 +1391,10 @@ packages:
   json5@2.2.3:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
+    hasBin: true
+
+  jsonrepair@3.13.3:
+    resolution: {integrity: sha512-BTznj0owIt2CBAH/LTo7+1I5pMvl1e1033LRl/HUowlZmJOIhzC0zbX5bxMngLkfT4WnzPP26QnW5wMr2g9tsQ==}
     hasBin: true
 
   jsx-ast-utils@3.3.5:
@@ -3391,6 +3398,8 @@ snapshots:
       minimist: 1.2.8
 
   json5@2.2.3: {}
+
+  jsonrepair@3.13.3: {}
 
   jsx-ast-utils@3.3.5:
     dependencies:
