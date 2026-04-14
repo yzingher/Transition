@@ -38,14 +38,17 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: "moonshotai/kimi-k2",
         max_tokens: 2500,
-        temperature: 0.8,
-        response_format: { type: "json_object" },
+        temperature: 0.7,
         provider: {
           sort: "throughput",
         },
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: "Generate the response now." },
+          {
+            role: "user",
+            content:
+              "Generate the response now. Return ONLY the raw JSON object — no markdown fencing, no prose before or after, no code blocks.",
+          },
         ],
       }),
     });
