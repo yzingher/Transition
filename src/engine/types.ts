@@ -1,142 +1,189 @@
-// ── Core Game Types ──
+// ── Primitive types ──
+
+export interface Resources {
+  budget: number;
+  talent: number;
+  compute: number;
+}
+
+export interface Meters {
+  stability: number;
+  relevance: number;
+}
 
 export interface Effects {
   stability?: number;
   relevance?: number;
-  political_capital?: number;
   budget?: number;
   talent?: number;
+  compute?: number;
 }
 
-export interface DecisionRecord {
-  turn: number;
-  year: string;
-  event_title: string;
-  chosen_option: string;
-  chosen_label: string;
-  narrative: string;
-  immediate_effects: Effects;
-  delayed_count: number;
+// ── Economic indicators (surfaced at chapter breaks) ──
+
+export interface EconomicIndicators {
+  unemploymentRate: number;
+  gdpGrowth: number;
+  giniCoefficient: number;
+  aiAdoptionRate: number;
+  netTalentFlow: number;
+  publicTrustIndex: number;
 }
 
-export interface PendingConsequence {
-  source_turn: number;
-  resolves_at_turn: number;
-  decision_summary: string;
-  effects: Effects;
-  narrative_on_resolve: string;
-}
+// ── World state ──
 
 export interface WorldState {
-  ai_capability_level: string;
-  key_events_occurred: string[];
-  geopolitical_notes: string;
+  aiCapabilityLevel: string;
+  keyEvents: string[];
+  geopoliticalContext: string;
+  safetyIncidents: string[];
+  economicIndicators: EconomicIndicators;
 }
 
-export interface GameState {
-  turn: number; // 0–12
-  year: string;
-  phase: 1 | 2 | 3;
-  meters: {
-    stability: number;
-    relevance: number;
-  };
-  resources: {
-    political_capital: number;
-    budget: number;
-    talent: number;
-  };
-  decision_history: DecisionRecord[];
-  pending_consequences: PendingConsequence[];
-  active_policies: string[];
-  world_state: WorldState;
+// ── Cards ──
+
+export type CardWeight = "routine" | "interesting" | "gut_punch";
+export type CardType = "triage" | "human_moment";
+export type Uncertainty = "low" | "moderate" | "high";
+export type CardAction = "approve" | "reject" | "defer";
+
+export interface CardGate {
+  resource: keyof Resources;
+  minimum: number;
 }
 
-// ── Scripted Event ──
-
-export interface ScriptedEvent {
-  turn: number;
-  year: string;
-  phase: 1 | 2 | 3;
-  title: string;
-  description: string;
+export interface RawConsequence {
+  resolvesAtChapter: number;
+  condition?: string;
+  effectsIfTrue: Effects;
+  effectsIfFalse?: Effects;
+  narrativeOnResolve: string;
+  previewHint?: string;
 }
 
-// ── LLM Response Types ──
-
-export interface DataPoint {
-  label: string;
-  value: string;
-  trend: "up" | "down" | "stable";
-}
-
-export interface BriefingOption {
+export interface TriageCard {
   id: string;
-  label: string;
-  description: string;
-  estimated_costs: {
-    political_capital: number;
-    budget: number;
-  };
+  type: CardType;
+  weight: CardWeight;
+  from: string;
+  text: string;
+  cost: Partial<Resources>;
+  gate?: CardGate;
+  uncertainty: Uncertainty;
+  uncertaintyNote?: string;
+  immediateOnApprove: Effects;
+  consequencesOnApprove: RawConsequence[];
+  consequencesOnReject: RawConsequence[];
+  canDefer: boolean;
+  addsPolicies?: string[];
+}
+
+// ── Decisions ──
+
+export interface Decision {
+  chapter: number;
+  cardId: string;
+  cardText: string;
+  from: string;
+  action: CardAction;
+  effectsApplied: Effects;
+  policiesAdded: string[];
+}
+
+// ── Consequences (in pending queue) ──
+
+export interface Consequence {
+  sourceChapter: number;
+  resolvesAtChapter: number;
+  decisionSummary: string;
+  condition?: string;
+  effectsIfTrue: Effects;
+  effectsIfFalse?: Effects;
+  narrativeOnResolve: string;
 }
 
 export interface ResolvedConsequence {
-  source_turn: number;
   narrative: string;
   effects: Effects;
 }
 
-export interface BriefingResponse {
+// ── Strategic direction ──
+
+export interface StrategicOption {
+  id: string;
+  label: string;
+  description: string;
+  leansToward: "stability" | "relevance" | "balance" | "bold";
+}
+
+export interface StrategicQuestion {
+  prompt: string;
+  options: StrategicOption[];
+}
+
+// ── Crisis flags ──
+
+export interface CrisisFlags {
+  stabilityCrisis: boolean;
+  relevanceCrisis: boolean;
+  divergenceNoted: boolean;
+}
+
+// ── Full game state ──
+
+export type Phase = "title" | "triage" | "chapter_break" | "reckoning";
+
+export interface GameState {
+  chapter: 1 | 2 | 3 | 4 | 5;
+  phase: Phase;
+  meters: Meters;
+  resources: Resources;
+  talentAllocations: Record<string, number>;
+  activePolicies: string[];
+  decisionHistory: Decision[];
+  pendingConsequences: Consequence[];
+  deferredCards: TriageCard[];
+  worldState: WorldState;
+  strategicDirection: string | null;
+  currentCards: TriageCard[];
+  cardIndex: number;
+  crisisFlags: CrisisFlags;
+  resolvedConsequencesLog: ResolvedConsequence[];
+  lastChapterBriefing: string;
+}
+
+// ── LLM response shapes ──
+
+export interface ChapterStartResponse {
   briefing: {
     narrative: string;
-    data_points: DataPoint[];
+    resolvedConsequences: ResolvedConsequence[];
   };
-  resolved_consequences: ResolvedConsequence[];
-  options: BriefingOption[];
-  allows_custom_action: boolean;
+  cards: TriageCard[];
+  updatedWorldState: Partial<WorldState>;
+  economicIndicators: EconomicIndicators;
 }
 
-export interface DelayedConsequence {
-  resolves_at_turn: number;
-  preview_hint: string;
-  effects: Effects;
-  narrative_on_resolve: string;
-}
-
-export interface DecisionResponse {
+export interface EvaluateChapterResponse {
   narrative: string;
-  immediate_effects: Effects;
-  delayed_consequences: DelayedConsequence[];
-  new_policies: string[];
-  updated_world_state: {
-    ai_capability_level: string;
-    new_events: string[];
-    geopolitical_notes: string;
-  };
-  political_capital_regen: number;
+  resolvedConsequences: ResolvedConsequence[];
+  economicIndicators: EconomicIndicators;
+  strategicQuestion: StrategicQuestion;
 }
 
-export interface Perspective {
-  role: string;
-  text: string;
-}
-
-export interface EndGameResponse {
+export interface ReckoningResponse {
   portrait: string;
-  perspectives: Perspective[];
+  vignettes: { role: string; text: string }[];
   epithet: string;
-  derived_stats: {
-    inequality_trend: string;
-    talent_flow: string;
-    fiscal_sustainability: string;
-  };
+  causalChainSummary: string;
 }
 
-// ── Screen State ──
+// ── Outcome archetype ──
 
-export type Screen =
-  | "title"
-  | "briefing"
-  | "consequence"
-  | "end"
-  | "game_over";
+export interface OutcomeArchetype {
+  key: string;
+  name: string;
+  tagline: string;
+  definition: string;
+  rarityPercent: number;
+}

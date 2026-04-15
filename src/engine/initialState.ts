@@ -2,25 +2,47 @@ import { GameState } from "./types";
 
 export function createInitialState(): GameState {
   return {
-    turn: 0,
-    year: "2024",
-    phase: 1,
+    chapter: 1,
+    phase: "title",
     meters: {
       stability: 65,
-      relevance: 55,
+      relevance: 50,
     },
     resources: {
-      political_capital: 60,
       budget: 50,
       talent: 45,
+      compute: 30,
     },
-    decision_history: [],
-    pending_consequences: [],
-    active_policies: [],
-    world_state: {
-      ai_capability_level: "Strong narrow AI. LLMs producing majority of new code. Early autonomous agents.",
-      key_events_occurred: [],
-      geopolitical_notes: "US leads in AI development. China investing heavily. EU focused on regulation. Global talent competition intensifying.",
+    talentAllocations: {},
+    activePolicies: [],
+    decisionHistory: [],
+    pendingConsequences: [],
+    deferredCards: [],
+    worldState: {
+      aiCapabilityLevel:
+        "Strong narrow AI. LLMs generate majority of new code. Autonomous agents handle routine tasks. AI assists professionals but has not yet replaced them.",
+      keyEvents: [],
+      geopoliticalContext:
+        "US leads commercial AI. China investing heavily in state-directed AI. EU pursuing regulation-first approach. Gulf states funding compute infrastructure. UK and mid-sized advanced economies navigating between blocs.",
+      safetyIncidents: [],
+      economicIndicators: {
+        unemploymentRate: 4.2,
+        gdpGrowth: 1.8,
+        giniCoefficient: 34.8,
+        aiAdoptionRate: 12,
+        netTalentFlow: -0.5,
+        publicTrustIndex: 52,
+      },
     },
+    strategicDirection: null,
+    currentCards: [],
+    cardIndex: 0,
+    crisisFlags: {
+      stabilityCrisis: false,
+      relevanceCrisis: false,
+      divergenceNoted: false,
+    },
+    resolvedConsequencesLog: [],
+    lastChapterBriefing: "",
   };
 }

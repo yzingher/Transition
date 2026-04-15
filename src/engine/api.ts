@@ -1,15 +1,10 @@
-import { BriefingResponse, DecisionResponse, EndGameResponse } from "./types";
+import {
+  ChapterStartResponse,
+  EvaluateChapterResponse,
+  ReckoningResponse,
+} from "./types";
 
-function stripMarkdownFencing(text: string): string {
-  let cleaned = text.trim();
-  // Remove ```json ... ``` or ``` ... ```
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
-  }
-  return cleaned.trim();
-}
-
-export async function callLLM<T>(systemPrompt: string): Promise<T> {
+async function callLLM<T>(systemPrompt: string): Promise<T> {
   const res = await fetch("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -17,28 +12,26 @@ export async function callLLM<T>(systemPrompt: string): Promise<T> {
   });
 
   if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`API error ${res.status}: ${errorBody}`);
+    const body = await res.text();
+    throw new Error(`API error ${res.status}: ${body}`);
   }
-
-  const data = await res.json();
-  return data as T;
+  return (await res.json()) as T;
 }
 
-export async function generateBriefing(
+export function generateChapterStart(
   systemPrompt: string
-): Promise<BriefingResponse> {
-  return callLLM<BriefingResponse>(systemPrompt);
+): Promise<ChapterStartResponse> {
+  return callLLM<ChapterStartResponse>(systemPrompt);
 }
 
-export async function generateDecision(
+export function evaluateChapter(
   systemPrompt: string
-): Promise<DecisionResponse> {
-  return callLLM<DecisionResponse>(systemPrompt);
+): Promise<EvaluateChapterResponse> {
+  return callLLM<EvaluateChapterResponse>(systemPrompt);
 }
 
-export async function generateEndGame(
+export function generateReckoning(
   systemPrompt: string
-): Promise<EndGameResponse> {
-  return callLLM<EndGameResponse>(systemPrompt);
+): Promise<ReckoningResponse> {
+  return callLLM<ReckoningResponse>(systemPrompt);
 }

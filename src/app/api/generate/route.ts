@@ -43,7 +43,7 @@ async function callOpenRouter(
       },
       body: JSON.stringify({
         model: "moonshotai/kimi-k2",
-        max_tokens: 4000,
+        max_tokens: 8000,
         temperature: strictness === "strict" ? 0.4 : 0.7,
         provider: { sort: "throughput" },
         messages: [

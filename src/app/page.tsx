@@ -3,97 +3,116 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import {
   GameState,
-  Screen,
-  BriefingResponse,
-  DecisionResponse,
-  EndGameResponse,
+  TriageCard,
+  CardAction,
+  Decision,
+  EvaluateChapterResponse,
+  ReckoningResponse,
+  OutcomeArchetype,
+  StrategicOption,
+  Effects,
 } from "@/engine/types";
 import { createInitialState } from "@/engine/initialState";
-import { SCRIPTED_EVENTS } from "@/engine/scriptedEvents";
 import {
-  buildBriefingPrompt,
-  buildDecisionPrompt,
-  buildEndGamePrompt,
+  buildChapterStartPrompt,
+  buildEvaluateChapterPrompt,
+  buildReckoningPrompt,
 } from "@/engine/prompts";
 import {
+  generateChapterStart,
+  evaluateChapter,
+  generateReckoning,
+} from "@/engine/api";
+import {
   applyEffects,
-  resolveConsequences,
-  addPendingConsequences,
-  checkGameOver,
-  applyPoliticalCapitalRegen,
+  payCost,
+  enqueueConsequences,
+  resolveConsequencesForChapter,
+  checkCrisisFlags,
 } from "@/engine/lagEngine";
-import { generateBriefing, generateDecision, generateEndGame } from "@/engine/api";
+import { cardPassesGate } from "@/engine/resourceLogic";
+import { mapStateToOutcome } from "@/engine/outcomeMapper";
 
 import TitleScreen from "@/components/TitleScreen";
-import GameHeader from "@/components/GameHeader";
-import BriefingScreen from "@/components/BriefingScreen";
-import ConsequenceScreen from "@/components/ConsequenceScreen";
-import EndScreen from "@/components/EndScreen";
+import Meters from "@/components/Meters";
+import ResourceBar from "@/components/ResourceBar";
+import ResourceDashboard from "@/components/ResourceDashboard";
+import CardStack from "@/components/CardStack";
+import ChapterBreak from "@/components/ChapterBreak";
+import Reckoning from "@/components/Reckoning";
+import MeterDeltaToast from "@/components/MeterDeltaToast";
+import { getChapter } from "@/data/chapters";
 
 const LOADING_MESSAGES = [
-  "Analyzing geopolitical context…",
   "Consulting advisers…",
-  "Drafting options…",
+  "Drafting the card deck…",
   "Polling the cabinet…",
-  "Reviewing intelligence briefings…",
+  "Reviewing intelligence…",
+  "Tallying consequences…",
+  "Checking the timeline…",
 ];
 
 export default function Home() {
-  const [screen, setScreen] = useState<Screen>("title");
-  const [gameState, setGameState] = useState<GameState>(createInitialState);
-  const [briefing, setBriefing] = useState<BriefingResponse | null>(null);
-  const [decision, setDecision] = useState<DecisionResponse | null>(null);
-  const [endGame, setEndGame] = useState<EndGameResponse | null>(null);
-  const [gameOverReason, setGameOverReason] = useState<"stability" | "relevance" | null>(null);
+  const [state, setState] = useState<GameState>(createInitialState);
+  const [pendingEvaluation, setPendingEvaluation] =
+    useState<EvaluateChapterResponse | null>(null);
+  const [reckoning, setReckoning] = useState<ReckoningResponse | null>(null);
+  const [outcome, setOutcome] = useState<OutcomeArchetype | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Prefetch state — filled while the user reads the consequence screen
-  const prefetchedBriefingRef = useRef<{
-    briefing: BriefingResponse;
-    stateWithResolution: GameState;
-  } | null>(null);
-  const prefetchedEndGameRef = useRef<EndGameResponse | null>(null);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [lastDelta, setLastDelta] = useState<Effects | null>(null);
+  const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
+  const chapterDecisionsRef = useRef<Decision[]>([]);
 
   // Rotating loading messages
-  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
   useEffect(() => {
     if (!isLoading) return;
     const interval = setInterval(() => {
-      setLoadingMsgIndex((i) => (i + 1) % LOADING_MESSAGES.length);
-    }, 2000);
+      setLoadingMsgIdx((i) => (i + 1) % LOADING_MESSAGES.length);
+    }, 2200);
     return () => clearInterval(interval);
   }, [isLoading]);
 
-  // Start game → advance to turn 1 and fetch briefing
+  // Start game → fetch Chapter 1
   const handleStart = useCallback(async () => {
     setError(null);
     setIsLoading(true);
     try {
-      const newState: GameState = {
-        ...createInitialState(),
-        turn: 1,
-        year: SCRIPTED_EVENTS[0].year,
-        phase: SCRIPTED_EVENTS[0].phase,
-      };
-      setGameState(newState);
+      let s = createInitialState();
+      s = { ...s, phase: "triage", chapter: 1 };
+      const prompt = buildChapterStartPrompt(s);
+      const res = await generateChapterStart(prompt);
 
-      const event = SCRIPTED_EVENTS[0];
-      const prompt = buildBriefingPrompt(newState, event);
-      const briefingData = await generateBriefing(prompt);
-
-      // Apply resolved consequences if any
-      let stateAfterResolution = newState;
-      if (briefingData.resolved_consequences?.length > 0) {
-        stateAfterResolution = resolveConsequences(
-          newState,
-          briefingData.resolved_consequences
-        );
-        setGameState(stateAfterResolution);
+      // Apply resolved consequences (shouldn't be any at chapter 1 but handle)
+      for (const rc of res.briefing.resolvedConsequences) {
+        s = applyEffects(s, rc.effects);
+        s = {
+          ...s,
+          resolvedConsequencesLog: [...s.resolvedConsequencesLog, rc],
+        };
       }
 
-      setBriefing(briefingData);
-      setScreen("briefing");
+      // Filter out cards that don't pass their gate
+      const validCards = res.cards.filter((c) => cardPassesGate(s.resources, c.gate));
+
+      s = {
+        ...s,
+        currentCards: validCards,
+        cardIndex: 0,
+        lastChapterBriefing: res.briefing.narrative,
+        worldState: {
+          ...s.worldState,
+          ...res.updatedWorldState,
+          economicIndicators: {
+            ...s.worldState.economicIndicators,
+            ...res.economicIndicators,
+          },
+        },
+      };
+
+      chapterDecisionsRef.current = [];
+      setState(s);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start game");
     } finally {
@@ -101,252 +120,280 @@ export default function Home() {
     }
   }, []);
 
-  // Fire-and-forget prefetch of the next briefing. Runs while user reads consequence.
-  const prefetchNextBriefing = useCallback((stateAfterDecision: GameState) => {
-    const nextTurn = stateAfterDecision.turn + 1;
-    if (nextTurn > 12) return;
+  // Handle a triage card action
+  const handleCardAction = useCallback(
+    (card: TriageCard, action: CardAction) => {
+      setState((prev) => {
+        let s = prev;
+        let applied: Effects = {};
 
-    const nextEvent = SCRIPTED_EVENTS[nextTurn - 1];
-    const nextState: GameState = {
-      ...stateAfterDecision,
-      turn: nextTurn,
-      year: nextEvent.year,
-      phase: nextEvent.phase,
-    };
-    const prompt = buildBriefingPrompt(nextState, nextEvent);
-
-    generateBriefing(prompt)
-      .then((briefingData) => {
-        let stateWithResolution = nextState;
-        if (briefingData.resolved_consequences?.length > 0) {
-          stateWithResolution = resolveConsequences(
-            nextState,
-            briefingData.resolved_consequences
+        if (action === "approve") {
+          // Pay cost
+          s = payCost(s, card.cost);
+          // Apply immediate effects
+          s = applyEffects(s, card.immediateOnApprove);
+          // Enqueue approve consequences
+          s = enqueueConsequences(
+            s,
+            card.consequencesOnApprove,
+            card.text.slice(0, 80),
+            s.chapter
           );
+          // Add any new policies
+          if (card.addsPolicies && card.addsPolicies.length > 0) {
+            s = {
+              ...s,
+              activePolicies: [...s.activePolicies, ...card.addsPolicies],
+            };
+          }
+          applied = {
+            ...Object.fromEntries(
+              Object.entries(card.cost).map(([k, v]) => [k, -(v as number)])
+            ),
+            ...card.immediateOnApprove,
+          };
+        } else if (action === "reject") {
+          s = enqueueConsequences(
+            s,
+            card.consequencesOnReject,
+            "Rejected: " + card.text.slice(0, 80),
+            s.chapter
+          );
+        } else if (action === "defer") {
+          s = {
+            ...s,
+            deferredCards: [...s.deferredCards, card],
+          };
         }
-        prefetchedBriefingRef.current = {
-          briefing: briefingData,
-          stateWithResolution,
+
+        // Check crisis flags after every action
+        s = checkCrisisFlags(s);
+
+        // Record decision (skip human_moment cards)
+        if (card.type !== "human_moment") {
+          const decision: Decision = {
+            chapter: prev.chapter,
+            cardId: card.id,
+            cardText: card.text,
+            from: card.from,
+            action,
+            effectsApplied: applied,
+            policiesAdded: card.addsPolicies ?? [],
+          };
+          chapterDecisionsRef.current.push(decision);
+          s = {
+            ...s,
+            decisionHistory: [...s.decisionHistory, decision],
+          };
+        }
+
+        s = { ...s, cardIndex: s.cardIndex + 1 };
+        return s;
+      });
+      // Flash delta toast (approx — based on applied above, but we don't capture it here without lifting)
+      if (action === "approve") {
+        const effs: Effects = {
+          ...Object.fromEntries(
+            Object.entries(card.cost).map(([k, v]) => [k, -(v as number)])
+          ),
+          ...card.immediateOnApprove,
         };
-      })
-      .catch(() => {
-        // Silently discard — handleNextTurn will fall back to live fetch
-        prefetchedBriefingRef.current = null;
-      });
-  }, []);
+        setLastDelta(effs);
+      }
+    },
+    []
+  );
 
-  // Fire-and-forget prefetch of the end game (for the final turn).
-  const prefetchEndGame = useCallback((finalState: GameState) => {
-    const prompt = buildEndGamePrompt(finalState);
-    generateEndGame(prompt)
-      .then((data) => {
-        prefetchedEndGameRef.current = data;
-      })
-      .catch(() => {
-        prefetchedEndGameRef.current = null;
-      });
-  }, []);
+  // Detect chapter end (cardIndex reached currentCards length)
+  useEffect(() => {
+    if (
+      state.phase === "triage" &&
+      state.currentCards.length > 0 &&
+      state.cardIndex >= state.currentCards.length
+    ) {
+      // Move into chapter break. Resolve consequences for this chapter (if any).
+      void closeChapter();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase, state.cardIndex, state.currentCards.length]);
 
-  // Player submits a decision
-  const handleDecision = useCallback(
-    async (action: string) => {
-      if (!briefing) return;
+  // Close the current chapter: resolve consequences, call evaluate, show break
+  const closeChapter = useCallback(async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      // Resolve consequences targeted at this chapter (narrative on close)
+      // Note: most consequences target *future* chapters; this just sweeps anything scheduled here.
+      let s = state;
+      const { state: afterResolve } = resolveConsequencesForChapter(
+        s,
+        s.chapter
+      );
+      s = afterResolve;
+
+      const prompt = buildEvaluateChapterPrompt(s, chapterDecisionsRef.current);
+      const evaluation = await evaluateChapter(prompt);
+
+      // Apply evaluation's resolvedConsequences as additional effects (in case evaluate surfaces more)
+      for (const rc of evaluation.resolvedConsequences) {
+        s = applyEffects(s, rc.effects);
+      }
+
+      // Update economic indicators from evaluation
+      s = {
+        ...s,
+        worldState: {
+          ...s.worldState,
+          economicIndicators: evaluation.economicIndicators,
+        },
+        phase: "chapter_break",
+        resolvedConsequencesLog: [
+          ...s.resolvedConsequencesLog,
+          ...evaluation.resolvedConsequences,
+        ],
+      };
+
+      setState(s);
+      setPendingEvaluation(evaluation);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to close chapter"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [state]);
+
+  // After chapter break, select direction and advance to next chapter (or reckoning if this was chapter 5)
+  const handleSelectDirection = useCallback(
+    async (option: StrategicOption) => {
       setError(null);
       setIsLoading(true);
       try {
-        const event = SCRIPTED_EVENTS[gameState.turn - 1];
-        const prompt = buildDecisionPrompt(gameState, event, action);
-        const decisionData = await generateDecision(prompt);
-
-        // Apply immediate effects
-        let newState = applyEffects(gameState, decisionData.immediate_effects);
-
-        // Apply political capital regeneration
-        newState = applyPoliticalCapitalRegen(
-          newState,
-          decisionData.political_capital_regen
-        );
-
-        // Add delayed consequences
-        if (decisionData.delayed_consequences?.length > 0) {
-          newState = addPendingConsequences(
-            newState,
-            decisionData.delayed_consequences,
-            action,
-            gameState.turn
-          );
+        // If this was chapter 5, skip to reckoning — but actually chapter 5 has no break per PRD
+        if (state.chapter >= 5) {
+          await goToReckoning(state);
+          return;
         }
 
-        // Update world state
-        newState = {
-          ...newState,
-          active_policies: [
-            ...newState.active_policies,
-            ...decisionData.new_policies,
-          ],
-          world_state: {
-            ai_capability_level:
-              decisionData.updated_world_state.ai_capability_level ||
-              newState.world_state.ai_capability_level,
-            key_events_occurred: [
-              ...newState.world_state.key_events_occurred,
-              ...decisionData.updated_world_state.new_events,
-            ],
-            geopolitical_notes:
-              decisionData.updated_world_state.geopolitical_notes ||
-              newState.world_state.geopolitical_notes,
+        const nextChapterNum = (state.chapter + 1) as 1 | 2 | 3 | 4 | 5;
+        let s: GameState = {
+          ...state,
+          chapter: nextChapterNum,
+          strategicDirection: option.label,
+          phase: "triage",
+          currentCards: [],
+          cardIndex: 0,
+        };
+
+        // Resolve any consequences targeting this new chapter BEFORE generating cards,
+        // so the LLM sees the post-resolution state
+        const { state: afterResolve } = resolveConsequencesForChapter(
+          s,
+          nextChapterNum
+        );
+        s = afterResolve;
+
+        const prompt = buildChapterStartPrompt(s);
+        const res = await generateChapterStart(prompt);
+
+        for (const rc of res.briefing.resolvedConsequences) {
+          // These should usually be empty since we already resolved above, but handle defensively
+          s = applyEffects(s, rc.effects);
+        }
+
+        const validCards = res.cards.filter((c) => cardPassesGate(s.resources, c.gate));
+
+        s = {
+          ...s,
+          currentCards: validCards,
+          cardIndex: 0,
+          lastChapterBriefing: res.briefing.narrative,
+          deferredCards: [], // cleared — they've been re-surfaced by the LLM
+          worldState: {
+            ...s.worldState,
+            ...res.updatedWorldState,
+            economicIndicators: {
+              ...s.worldState.economicIndicators,
+              ...res.economicIndicators,
+            },
           },
         };
+        s = checkCrisisFlags(s);
 
-        // Record decision
-        const chosenLabel =
-          briefing.options.find((o) =>
-            action.includes(o.label)
-          )?.label ?? "Custom Action";
-
-        newState = {
-          ...newState,
-          decision_history: [
-            ...newState.decision_history,
-            {
-              turn: gameState.turn,
-              year: gameState.year,
-              event_title: event.title,
-              chosen_option: action,
-              chosen_label: chosenLabel,
-              narrative: decisionData.narrative,
-              immediate_effects: decisionData.immediate_effects,
-              delayed_count: decisionData.delayed_consequences?.length ?? 0,
-            },
-          ],
-        };
-
-        setGameState(newState);
-        setDecision(decisionData);
-
-        // Check game over
-        const gameOver = checkGameOver(newState);
-        if (gameOver) {
-          setGameOverReason(gameOver);
-          await fetchEndGame(newState, gameOver);
-        } else {
-          setScreen("consequence");
-          // Fire the prefetch for the next turn's content while the user reads
-          if (newState.turn >= 12) {
-            prefetchEndGame(newState);
-          } else {
-            prefetchNextBriefing(newState);
-          }
-        }
+        chapterDecisionsRef.current = [];
+        setPendingEvaluation(null);
+        setState(s);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to process decision");
+        setError(
+          err instanceof Error ? err.message : "Failed to start next chapter"
+        );
       } finally {
         setIsLoading(false);
       }
     },
-    [gameState, briefing, prefetchNextBriefing, prefetchEndGame]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state]
   );
 
-  // Fetch end game (live — when prefetch missing or game-over fired mid-game)
-  const fetchEndGame = async (
-    state: GameState,
-    reason: "stability" | "relevance" | null
-  ) => {
-    try {
-      // Use prefetched end-game if we have one
-      if (prefetchedEndGameRef.current) {
-        setEndGame(prefetchedEndGameRef.current);
-        prefetchedEndGameRef.current = null;
-        setGameOverReason(reason);
-        setScreen("end");
-        return;
-      }
-      const prompt = buildEndGamePrompt(state);
-      const endGameData = await generateEndGame(prompt);
-      setEndGame(endGameData);
-      setGameOverReason(reason);
-      setScreen("end");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate ending");
-    }
-  };
-
-  // Advance to next turn — uses prefetched briefing if available
-  const handleNextTurn = useCallback(async () => {
-    setError(null);
-
-    // Past turn 12 → end game
-    const nextTurnNumber = gameState.turn + 1;
-    if (nextTurnNumber > 12) {
-      setIsLoading(true);
-      await fetchEndGame(gameState, null);
-      setIsLoading(false);
-      return;
-    }
-
-    // Prefetch hit — instant transition
-    if (prefetchedBriefingRef.current) {
-      const { briefing: prefetched, stateWithResolution } =
-        prefetchedBriefingRef.current;
-      prefetchedBriefingRef.current = null;
-      setGameState(stateWithResolution);
-      setBriefing(prefetched);
-      setDecision(null);
-      setScreen("briefing");
-      return;
-    }
-
-    // Prefetch miss — live fetch
-    setIsLoading(true);
-    try {
-      const event = SCRIPTED_EVENTS[nextTurnNumber - 1];
-      const newState: GameState = {
-        ...gameState,
-        turn: nextTurnNumber,
-        year: event.year,
-        phase: event.phase,
-      };
-      const prompt = buildBriefingPrompt(newState, event);
-      const briefingData = await generateBriefing(prompt);
-
-      let stateAfterResolution = newState;
-      if (briefingData.resolved_consequences?.length > 0) {
-        stateAfterResolution = resolveConsequences(
-          newState,
-          briefingData.resolved_consequences
+  // Go to reckoning
+  const goToReckoning = useCallback(
+    async (finalState: GameState) => {
+      try {
+        const archetype = mapStateToOutcome(finalState);
+        setOutcome(archetype);
+        const prompt = buildReckoningPrompt(finalState, archetype);
+        const res = await generateReckoning(prompt);
+        setReckoning(res);
+        setState({ ...finalState, phase: "reckoning" });
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to generate reckoning"
         );
       }
+    },
+    []
+  );
 
-      setGameState(stateAfterResolution);
-      setBriefing(briefingData);
-      setDecision(null);
-      setScreen("briefing");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to advance turn");
-    } finally {
-      setIsLoading(false);
+  // If chapter 5 triage finishes, go straight to reckoning
+  useEffect(() => {
+    if (
+      state.chapter === 5 &&
+      state.phase === "triage" &&
+      state.currentCards.length > 0 &&
+      state.cardIndex >= state.currentCards.length
+    ) {
+      // Override — skip chapter_break, go to reckoning
+      setIsLoading(true);
+      goToReckoning(state).finally(() => setIsLoading(false));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase, state.chapter, state.cardIndex, state.currentCards.length]);
 
   // Play again
   const handlePlayAgain = useCallback(() => {
-    prefetchedBriefingRef.current = null;
-    prefetchedEndGameRef.current = null;
-    setGameState(createInitialState());
-    setBriefing(null);
-    setDecision(null);
-    setEndGame(null);
-    setGameOverReason(null);
+    setState(createInitialState());
+    setPendingEvaluation(null);
+    setReckoning(null);
+    setOutcome(null);
     setError(null);
-    setScreen("title");
+    chapterDecisionsRef.current = [];
   }, []);
+
+  // ── Render ──
+
+  const showTitle = state.phase === "title";
+  const showTriage = state.phase === "triage" && state.currentCards.length > 0;
+  const showChapterBreak =
+    state.phase === "chapter_break" && pendingEvaluation !== null;
+  const showReckoning =
+    state.phase === "reckoning" && reckoning !== null && outcome !== null;
 
   return (
     <>
       {/* Error banner */}
       {error && (
-        <div className="sticky top-0 z-[60] bg-danger/90 text-white text-xs px-4 py-2 text-center font-mono">
+        <div className="sticky top-0 z-[90] bg-red-600/90 text-white text-xs px-4 py-2 text-center font-mono">
           {error}
           <button
             onClick={() => setError(null)}
@@ -357,58 +404,98 @@ export default function Home() {
         </div>
       )}
 
-      {/* Loading overlay — full screen during first briefing and next-turn fallback */}
-      {isLoading && (screen === "title" || screen === "briefing" || screen === "consequence") && (
-        <div className="fixed inset-0 z-[70] bg-navy-900/90 backdrop-blur-sm flex items-center justify-center px-6">
+      {/* Title */}
+      {showTitle && (
+        <TitleScreen onStart={handleStart} isLoading={isLoading} />
+      )}
+
+      {/* Game header (visible during triage and break) */}
+      {(state.phase === "triage" || state.phase === "chapter_break") && (
+        <header className="sticky top-0 z-40 bg-stone-950/95 backdrop-blur-sm border-b border-stone-800/60 px-3 pt-3 pb-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] text-amber font-semibold uppercase tracking-widest">
+                Ch {state.chapter}/5
+              </span>
+              <span className="font-mono text-[10px] text-stone-500">
+                {getChapter(state.chapter).years}
+              </span>
+            </div>
+            <span className="font-mono text-[9px] uppercase tracking-widest text-stone-500">
+              {getChapter(state.chapter).title}
+            </span>
+          </div>
+          <Meters meters={state.meters} />
+          <div className="mt-2">
+            <ResourceBar
+              resources={state.resources}
+              onOpen={() => setDashboardOpen(true)}
+            />
+          </div>
+        </header>
+      )}
+
+      {/* Triage */}
+      {showTriage && (
+        <CardStack state={state} onCardAction={handleCardAction} />
+      )}
+
+      {/* Chapter break */}
+      {showChapterBreak && (
+        <ChapterBreak
+          chapter={state.chapter}
+          nextChapter={state.chapter + 1}
+          evaluation={pendingEvaluation}
+          onSelectDirection={handleSelectDirection}
+        />
+      )}
+
+      {/* Reckoning */}
+      {showReckoning && (
+        <Reckoning
+          state={state}
+          outcome={outcome}
+          reckoning={reckoning}
+          onPlayAgain={handlePlayAgain}
+        />
+      )}
+
+      {/* Dashboard overlay */}
+      {dashboardOpen && (
+        <ResourceDashboard
+          state={state}
+          onClose={() => setDashboardOpen(false)}
+        />
+      )}
+
+      {/* Meter delta toast */}
+      <MeterDeltaToast effects={lastDelta} />
+
+      {/* Full-screen loading overlay between phases (never during triage) */}
+      {isLoading && state.phase !== "title" && state.phase !== "triage" && (
+        <div className="fixed inset-0 z-[85] bg-stone-950/92 backdrop-blur-sm flex items-center justify-center px-6">
           <div className="flex flex-col items-center gap-4">
-            <div className="w-8 h-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-            <p className="font-mono text-xs text-slate-300 text-center transition-opacity duration-300">
-              {LOADING_MESSAGES[loadingMsgIndex]}
+            <div className="w-8 h-8 border-2 border-amber/30 border-t-amber rounded-full animate-spin" />
+            <p className="font-mono text-[11px] text-stone-300 text-center">
+              {LOADING_MESSAGES[loadingMsgIdx]}
             </p>
           </div>
         </div>
       )}
 
-      {/* Title screen */}
-      {screen === "title" && <TitleScreen onStart={handleStart} />}
-
-      {/* Game screens with header */}
-      {screen !== "title" && screen !== "end" && (
-        <>
-          <GameHeader
-            turn={gameState.turn}
-            year={gameState.year}
-            phase={gameState.phase}
-            stability={gameState.meters.stability}
-            relevance={gameState.meters.relevance}
-            political_capital={gameState.resources.political_capital}
-            budget={gameState.resources.budget}
-            talent={gameState.resources.talent}
-          />
-
-          {screen === "briefing" && briefing && (
-            <BriefingScreen
-              briefing={briefing}
-              onDecision={handleDecision}
-              isProcessing={isLoading}
-            />
-          )}
-
-          {screen === "consequence" && decision && (
-            <ConsequenceScreen decision={decision} onNextTurn={handleNextTurn} />
-          )}
-        </>
-      )}
-
-      {/* End screen */}
-      {screen === "end" && endGame && (
-        <EndScreen
-          gameState={gameState}
-          endGame={endGame}
-          gameOverReason={gameOverReason}
-          onPlayAgain={handlePlayAgain}
-        />
-      )}
+      {/* Full-screen loading overlay at triage boundary (generating chapter) */}
+      {isLoading &&
+        state.phase === "triage" &&
+        state.currentCards.length === 0 && (
+          <div className="fixed inset-0 z-[85] bg-stone-950/92 backdrop-blur-sm flex items-center justify-center px-6">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-8 h-8 border-2 border-amber/30 border-t-amber rounded-full animate-spin" />
+              <p className="font-mono text-[11px] text-stone-300 text-center">
+                {LOADING_MESSAGES[loadingMsgIdx]}
+              </p>
+            </div>
+          </div>
+        )}
     </>
   );
 }

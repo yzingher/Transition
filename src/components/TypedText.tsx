@@ -17,13 +17,18 @@ export default function TypedText({
 }: TypedTextProps) {
   const [displayedLength, setDisplayedLength] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
 
   useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setDisplayedLength(0);
     setIsComplete(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     intervalRef.current = setInterval(() => {
       setDisplayedLength((prev) => {
@@ -51,7 +56,6 @@ export default function TypedText({
     }
   };
 
-  // Split text into paragraphs and render
   const displayed = text.slice(0, displayedLength);
   const paragraphs = displayed.split("\n\n");
 
@@ -61,7 +65,7 @@ export default function TypedText({
         <p key={i} className="mb-3 leading-relaxed">
           {para}
           {i === paragraphs.length - 1 && !isComplete && (
-            <span className="typing-cursor text-amber-500 ml-0.5">▎</span>
+            <span className="typing-cursor text-amber ml-0.5">▎</span>
           )}
         </p>
       ))}

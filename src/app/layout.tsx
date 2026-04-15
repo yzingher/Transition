@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "The Transition",
-  description: "An AI governance simulation. You lead the taskforce. 12 turns. 2024-2035.",
+  description:
+    "A mobile AI governance simulation. You lead the UK's AI & Economy Taskforce through five chapters from 2024 to 2035. Every decision has consequences.",
 };
 
 export const viewport: Viewport = {
@@ -11,6 +12,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: "#1a1a1e",
 };
 
 export default function RootLayout({
