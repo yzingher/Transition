@@ -1,0 +1,45 @@
+{
+  "_comment": "SYNTHETIC OCDS release package for offline pipeline development. Shapes mirror the Contracts Finder OCDS API; all values fictional.",
+  "releases": [
+    {
+      "ocid": "ocds-b5fd17-ledger-fixture-001",
+      "id": "ledger-fixture-001",
+      "date": "2025-11-03T00:00:00Z",
+      "tag": ["award"],
+      "buyer": { "name": "Exampleshire County Council" },
+      "tender": {
+        "title": "Residential placements for children with standard needs",
+        "classification": { "scheme": "CPV", "id": "85311300", "description": "Welfare services for children and young people" }
+      },
+      "awards": [
+        {
+          "id": "aw-001",
+          "date": "2025-10-20T00:00:00Z",
+          "value": { "amount": 2450000, "currency": "GBP" },
+          "contractPeriod": { "startDate": "2025-11-01T00:00:00Z", "endDate": "2027-10-31T00:00:00Z" },
+          "suppliers": [{ "name": "Fictional Care Group Ltd" }]
+        }
+      ]
+    },
+    {
+      "ocid": "ocds-b5fd17-ledger-fixture-002",
+      "id": "ledger-fixture-002",
+      "date": "2025-12-11T00:00:00Z",
+      "tag": ["award"],
+      "buyer": { "name": "Exampleshire County Council" },
+      "tender": {
+        "title": "Independent fostering agency framework",
+        "classification": { "scheme": "CPV", "id": "85311300", "description": "Welfare services for children and young people" }
+      },
+      "awards": [
+        {
+          "id": "aw-002",
+          "date": "2025-12-01T00:00:00Z",
+          "value": { "amount": 5200000, "currency": "GBP" },
+          "contractPeriod": { "startDate": "2026-01-01T00:00:00Z", "endDate": "2028-12-31T00:00:00Z" },
+          "suppliers": [{ "name": "Fictional Fostering Ltd" }]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+# FOI agent operating configuration.
+# send_enabled flips ONLY by a reviewed commit naming the approved batch (P6).
+send_enabled: false
+approved_batches: []          # e.g. {id: wave-1-childrens-placements, approved_by: "", date: ""}
+
+rate_limits:
+  max_open_requests_per_authority: 2
+  min_days_between_requests_to_same_authority: 10
+  max_sends_per_day: 25
+
+wdtk:
+  route_all_requests: true    # public by default (P5)
+  api_base: https://www.whatdotheyknow.com

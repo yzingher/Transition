@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  # P1 + P4 — the project's constitution. Nothing merges if a published number
+  # lacks a complete chain or banned lexicon sits next to a named entity.
+  constitution:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - name: P1 chain check
+        run: python ci/chain_check.py
+      - name: P4 lexicon lint
+        run: python ci/lexicon_lint.py
+
+  pipelines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Sync
+        run: uv sync --directory pipelines
+      - name: Tests
+        run: uv run --directory pipelines pytest -q
+      - name: Smoke (offline, no credentials)
+        run: uv run --directory pipelines python -m pipelines.smoke
+      - name: Golden fixture is current
+        run: |
+          uv run --directory pipelines python scripts/gen_golden.py
+          git diff --exit-code models/tests/golden.json
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Engine parity (TS engine vs golden fixture)
+        run: pnpm --filter web test
+      - name: Build
+        run: pnpm --filter web build

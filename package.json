@@ -1,27 +1,16 @@
 {
-  "name": "transition-game",
+  "name": "ledger",
   "version": "0.1.0",
   "private": true,
+  "description": "The true cost of the British state, from first principles. Open source. Every number traceable.",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "jsonrepair": "^3.13.3",
-    "next": "16.2.3",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.3",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "start": "pnpm --filter web start",
+    "lint": "pnpm --filter web lint",
+    "test:web": "pnpm --filter web test",
+    "ci:chain": "python3 ci/chain_check.py",
+    "ci:lexicon": "python3 ci/lexicon_lint.py",
+    "ci:all": "python3 ci/chain_check.py && python3 ci/lexicon_lint.py"
   }
 }

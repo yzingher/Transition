@@ -1,0 +1,13 @@
+{
+  "_comment": "England & Wales bank holidays used by the FOI working-day clock. Sync from https://www.gov.uk/bank-holidays.json (pipelines TODO: automate the refresh each January). Verify before relying on any deadline near a listed date.",
+  "england-and-wales": [
+    "2026-01-01",
+    "2026-04-03",
+    "2026-04-06",
+    "2026-05-04",
+    "2026-05-25",
+    "2026-08-31",
+    "2026-12-25",
+    "2026-12-28"
+  ]
+}

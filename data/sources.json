@@ -1,0 +1,136 @@
+{
+  "sources": [
+    {
+      "id": "src-ons-ashe-2025",
+      "type": "official-statistics",
+      "title": "ONS Annual Survey of Hours and Earnings (ASHE), occupation tables",
+      "publisher": "Office for National Statistics",
+      "url": "https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/earningsandworkinghours/bulletins/annualsurveyofhoursandearnings/latest",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Landing page identified; specific occupation table (SOC care workers, residential) not yet retrieved or hashed. Phase 0 task."
+    },
+    {
+      "id": "src-sfc-workforce-2025",
+      "type": "sector-dataset",
+      "title": "Skills for Care adult social care workforce data (ASC-WDS, formerly NMDS-SC)",
+      "publisher": "Skills for Care",
+      "url": "https://www.skillsforcare.org.uk/Adult-Social-Care-Workforce-Data/Workforce-intelligence/publications/national-information/The-state-of-the-adult-social-care-sector-and-workforce-in-England.aspx",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Wage distributions for care staff. Children's residential workforce needs the DfE/Ofsted equivalent; identify exact publication in Phase 0."
+    },
+    {
+      "id": "src-childrens-homes-regs-2015",
+      "type": "legislation",
+      "title": "The Children's Homes (England) Regulations 2015 and Guide to the Quality Standards",
+      "publisher": "legislation.gov.uk / Ofsted",
+      "url": "https://www.legislation.gov.uk/uksi/2015/541/contents",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Statutory basis for staffing adequacy, registered manager requirement. Drives minimum staffing parameters."
+    },
+    {
+      "id": "src-ofsted-fees-2025",
+      "type": "official-guidance",
+      "title": "Ofsted fees for social care providers",
+      "publisher": "Ofsted",
+      "url": "https://www.gov.uk/government/publications/fees-for-social-care-providers",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Annual registration fee schedule for children's homes."
+    },
+    {
+      "id": "src-voa-property-2025",
+      "type": "official-statistics",
+      "title": "VOA / HM Land Registry residential property price and rental data",
+      "publisher": "Valuation Office Agency / HM Land Registry",
+      "url": "https://www.gov.uk/government/organisations/valuation-office-agency",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Regional purchase/lease benchmarks for 4-6 bed residential property. Exact series to be pinned in Phase 0."
+    },
+    {
+      "id": "src-dfe-s251-2024",
+      "type": "official-statistics",
+      "title": "DfE Section 251 outturn: LA and school expenditure, children's services lines",
+      "publisher": "Department for Education",
+      "url": "https://www.gov.uk/guidance/section-251-materials",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Does-cost side: aggregate placement expenditure by council. Ingestion pipeline: pipelines/ingest/s251.py."
+    },
+    {
+      "id": "src-fostering-allowances-2025",
+      "type": "official-guidance",
+      "title": "National minimum fostering allowances",
+      "publisher": "Department for Education",
+      "url": "https://www.gov.uk/support-for-foster-parents/help-with-the-cost-of-fostering",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Floor for carer allowance parameter in the IFA fostering model."
+    },
+    {
+      "id": "src-ofsted-social-care-stats-2025",
+      "type": "official-statistics",
+      "title": "Ofsted national statistics: children's social care in England (places, occupancy, providers)",
+      "publisher": "Ofsted",
+      "url": "https://www.gov.uk/government/collections/childrens-social-care-statistics",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Registered places, provider counts, occupancy context for the supply-side story."
+    },
+    {
+      "id": "src-fostering-regs-2011",
+      "type": "legislation",
+      "title": "The Fostering Services (England) Regulations 2011 and National Minimum Standards",
+      "publisher": "legislation.gov.uk / DfE",
+      "url": "https://www.legislation.gov.uk/uksi/2011/581/contents",
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Supervision, panel, and review requirements that drive IFA staffing parameters."
+    },
+    {
+      "id": "src-market-benchmarks-2025",
+      "type": "market-data",
+      "title": "Market benchmarks: cost of capital, corporate overhead rates (series to be pinned)",
+      "publisher": "To be determined in Phase 0 (candidates: Bank of England, sector accounts via Companies House)",
+      "url": null,
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Weakest sourcing in the seed set, flagged deliberately. Overhead and cost-of-capital parameters must be re-derived from actual provider accounts (Companies House pipeline) before any publication."
+    },
+    {
+      "id": "src-anchor-400k-provenance",
+      "type": "provenance-research",
+      "title": "Provenance of the widely-cited ~£400k/year residential placement figure (documents to be identified)",
+      "publisher": "To be determined in Phase 0 (candidates: DfE statistics, LGA/CCN commissioned reports, Competition & Markets Authority children's social care market study 2022)",
+      "url": null,
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Phase 0's whole job: pin what this figure measures (residential vs all placements, mean vs high-acuity outlier, with/without social work overhead) from primary sources before anything is built on it."
+    },
+    {
+      "id": "src-example-council-s251-2024",
+      "type": "illustrative-fixture",
+      "title": "ILLUSTRATIVE FIXTURE: synthetic S251 return for a fictional council",
+      "publisher": "Project Ledger (synthetic test data)",
+      "url": null,
+      "retrieved_at": null,
+      "sha256": null,
+      "status": "placeholder",
+      "notes": "Synthetic does-cost data for pipeline and UI development only. Attached to the fictional entity ent-exampleshire-cc. Never publishable."
+    }
+  ]
+}

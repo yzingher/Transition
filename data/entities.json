@@ -1,0 +1,46 @@
+{
+  "entities": [
+    {
+      "id": "ent-ons",
+      "name": "Office for National Statistics",
+      "kind": "public-body",
+      "companies_house_number": null,
+      "parent_id": null,
+      "aliases": ["ONS"]
+    },
+    {
+      "id": "ent-dfe",
+      "name": "Department for Education",
+      "kind": "department",
+      "companies_house_number": null,
+      "parent_id": null,
+      "aliases": ["DfE"]
+    },
+    {
+      "id": "ent-ofsted",
+      "name": "Ofsted",
+      "kind": "regulator",
+      "companies_house_number": null,
+      "parent_id": null,
+      "aliases": ["Office for Standards in Education, Children's Services and Skills"]
+    },
+    {
+      "id": "ent-skills-for-care",
+      "name": "Skills for Care",
+      "kind": "public-body",
+      "companies_house_number": null,
+      "parent_id": null,
+      "aliases": []
+    },
+    {
+      "id": "ent-exampleshire-cc",
+      "name": "Exampleshire County Council",
+      "kind": "council",
+      "companies_house_number": null,
+      "parent_id": null,
+      "aliases": [],
+      "fictional": true,
+      "notes": "Fictional council used for synthetic fixtures and UI development. No real-world referent. Real councils enter this registry only when their data is ingested."
+    }
+  ]
+}

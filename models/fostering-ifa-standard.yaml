@@ -1,0 +1,74 @@
+# Should-cost model: independent fostering agency (IFA) placement, standard needs
+# Every range cites a claim in /data/claims.json. Dispute a number? Open a PR.
+id: fostering-ifa-standard
+version: 0.1.0
+title: IFA fostering placement, standard needs
+sector: childrens-social-care
+unit: GBP/child-week
+status: draft
+description: >
+  Bottom-up weekly cost of one standard-needs fostering placement supplied
+  through an independent fostering agency, per child-week. Boundary: carer
+  payment, statutory supervision and support, agency overhead, and working
+  capital. Excludes: therapeutic enhanced placements (separate model) and
+  local-authority commissioning overhead. All parameter ranges are unverified
+  seeds pending Phase 0/1 verification — see /data/claims.json statuses.
+
+parameters:
+  - key: carer_weekly
+    label: Carer payment (allowance + fee)
+    unit: GBP/child-week
+    range: { low: 450, mid: 550, high: 650 }
+    claims: [clm-carer-weekly-payment]
+  - key: sw_loaded_salary
+    label: Supervising social worker loaded annual cost
+    unit: GBP/year
+    range: { low: 48000, mid: 55000, high: 64000 }
+    claims: [clm-ifa-sw-loaded-salary]
+  - key: sw_caseload
+    label: Households per supervising social worker
+    unit: households/FTE
+    range: { low: 12, mid: 14, high: 16 }
+    claims: [clm-ifa-sw-caseload]
+  - key: support_weekly
+    label: Per-placement support (panel, reviews, training, out-of-hours)
+    unit: GBP/child-week
+    range: { low: 30, mid: 45, high: 60 }
+    claims: [clm-ifa-support-weekly]
+  - key: overhead_rate
+    label: Agency central overhead share
+    unit: ratio
+    range: { low: 0.10, mid: 0.14, high: 0.18 }
+    claims: [clm-ifa-overhead-rate]
+  - key: working_capital_weekly
+    label: Working capital cost per placement
+    unit: GBP/child-week
+    range: { low: 5, mid: 10, high: 18 }
+    claims: [clm-ifa-working-capital-weekly]
+
+components:
+  - key: carer_cost
+    label: Carer payment (weekly)
+    formula: carer_weekly
+  - key: supervision_cost
+    label: Supervising social worker share (weekly)
+    formula: sw_loaded_salary / sw_caseload / 52
+  - key: support_cost
+    label: Support costs (weekly)
+    formula: support_weekly
+  - key: direct_subtotal
+    label: Direct placement cost before overhead
+    formula: carer_cost + supervision_cost + support_cost
+  - key: overhead_cost
+    label: Agency overhead (weekly)
+    formula: overhead_rate * direct_subtotal
+  - key: capital_cost
+    label: Working capital (weekly)
+    formula: working_capital_weekly
+
+outputs:
+  - key: per_child_week
+    label: Should-cost per child-week
+    formula: direct_subtotal + overhead_cost + capital_cost
+
+primary_output: per_child_week

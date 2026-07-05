@@ -1,0 +1,134 @@
+# Should-cost model: 4-bed residential children's home, standard needs (not high-acuity)
+# Every range cites a claim in /data/claims.json. Dispute a number? Open a PR.
+id: residential-childrens-home-4bed
+version: 0.1.0
+title: Residential children's home, 4-bed, standard needs
+sector: childrens-social-care
+unit: GBP/child-week
+status: draft
+description: >
+  Bottom-up weekly operating cost of a single Ofsted-registered 4-bed home for
+  children with standard (non-complex) needs, expressed per occupied
+  child-week. Boundary: everything the operating entity must pay, including a
+  fair return on capital employed. Excludes: local-authority social work
+  overhead, commissioning costs, and high-acuity staffing multiples (separate
+  model). All parameter ranges are unverified seeds pending Phase 0/1
+  verification — see /data/claims.json statuses.
+
+parameters:
+  - key: rcw_fte
+    label: Residential care workers (FTE)
+    unit: FTE
+    range: { low: 7.0, mid: 8.5, high: 10.0 }
+    claims: [clm-rcw-fte-4bed]
+    notes: Rota covering 2 waking staff daytime plus waking night cover.
+  - key: rcw_weekly_hours
+    label: Contracted hours per care worker FTE
+    unit: hours/week
+    range: { low: 37.0, mid: 37.5, high: 40.0 }
+    claims: [clm-rcw-weekly-hours]
+  - key: rcw_hourly_wage
+    label: Care worker hourly wage
+    unit: GBP/hour
+    range: { low: 12.0, mid: 13.5, high: 15.5 }
+    claims: [clm-rcw-hourly-wage]
+  - key: wage_oncost
+    label: Employer on-cost multiplier
+    unit: ratio
+    range: { low: 1.28, mid: 1.33, high: 1.40 }
+    claims: [clm-wage-oncost-multiplier]
+  - key: manager_salary
+    label: Registered manager salary
+    unit: GBP/year
+    range: { low: 42000, mid: 48000, high: 55000 }
+    claims: [clm-manager-salary]
+  - key: deputy_salary
+    label: Deputy manager salary
+    unit: GBP/year
+    range: { low: 34000, mid: 38000, high: 42000 }
+    claims: [clm-deputy-salary]
+  - key: property_weekly
+    label: Property (lease/amortised purchase incl. rates)
+    unit: GBP/week
+    range: { low: 700, mid: 1000, high: 1400 }
+    claims: [clm-property-weekly-4bed]
+  - key: utilities_weekly
+    label: Utilities, maintenance, household running
+    unit: GBP/week
+    range: { low: 250, mid: 350, high: 450 }
+    claims: [clm-utilities-maintenance-weekly]
+  - key: regulatory_annual
+    label: Regulatory & compliance (Ofsted fees, insurance, training, DBS)
+    unit: GBP/year
+    range: { low: 25000, mid: 35000, high: 45000 }
+    claims: [clm-regulatory-annual]
+  - key: child_direct_weekly
+    label: Direct per-child costs (food, clothing, activities, transport)
+    unit: GBP/child-week
+    range: { low: 180, mid: 250, high: 320 }
+    claims: [clm-child-direct-weekly]
+  - key: places
+    label: Registered places
+    unit: places
+    range: { low: 4, mid: 4, high: 4 }
+    claims: [clm-places-4bed]
+    notes: Fixed by model scope (4-bed registration category).
+  - key: occupancy
+    label: Occupancy rate
+    unit: ratio
+    range: { low: 0.75, mid: 0.85, high: 0.92 }
+    claims: [clm-occupancy-rate]
+  - key: overhead_rate
+    label: Central overhead share of operating cost
+    unit: ratio
+    range: { low: 0.08, mid: 0.115, high: 0.15 }
+    claims: [clm-overhead-rate]
+  - key: capital_employed
+    label: Capital employed per home
+    unit: GBP
+    range: { low: 500000, mid: 700000, high: 900000 }
+    claims: [clm-capital-employed-4bed]
+  - key: cost_of_capital
+    label: Fair annual return on capital employed
+    unit: ratio
+    range: { low: 0.06, mid: 0.08, high: 0.10 }
+    claims: [clm-cost-of-capital-rate]
+
+components:
+  - key: rcw_cost
+    label: Care worker wage bill (weekly)
+    formula: rcw_fte * rcw_weekly_hours * rcw_hourly_wage * wage_oncost
+  - key: management_cost
+    label: Registered + deputy manager (weekly)
+    formula: (manager_salary + deputy_salary) * wage_oncost / 52
+  - key: property_cost
+    label: Property (weekly)
+    formula: property_weekly
+  - key: utilities_cost
+    label: Utilities & maintenance (weekly)
+    formula: utilities_weekly
+  - key: regulatory_cost
+    label: Regulatory & compliance (weekly)
+    formula: regulatory_annual / 52
+  - key: child_direct_cost
+    label: Direct per-child costs (weekly, occupied places)
+    formula: child_direct_weekly * places * occupancy
+  - key: operating_subtotal
+    label: Operating subtotal before overhead & capital
+    formula: rcw_cost + management_cost + property_cost + utilities_cost + regulatory_cost + child_direct_cost
+  - key: overhead_cost
+    label: Central overhead (weekly)
+    formula: overhead_rate * operating_subtotal
+  - key: capital_charge
+    label: Return on capital employed (weekly)
+    formula: capital_employed * cost_of_capital / 52
+
+outputs:
+  - key: weekly_total
+    label: Weekly cost, whole home
+    formula: operating_subtotal + overhead_cost + capital_charge
+  - key: per_child_week
+    label: Should-cost per child-week
+    formula: (operating_subtotal + overhead_cost + capital_charge) / (places * occupancy)
+
+primary_output: per_child_week

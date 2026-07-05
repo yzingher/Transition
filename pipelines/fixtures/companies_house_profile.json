@@ -1,0 +1,15 @@
+{
+  "_comment": "SYNTHETIC Companies House company profile for offline development. Fictional company.",
+  "company_number": "00000000",
+  "company_name": "FICTIONAL CARE GROUP LTD",
+  "company_status": "active",
+  "type": "ltd",
+  "date_of_creation": "2015-03-02",
+  "sic_codes": ["87900"],
+  "registered_office_address": {
+    "address_line_1": "1 Example Street",
+    "locality": "Exampletown",
+    "postal_code": "EX1 1EX"
+  },
+  "links": { "filing_history": "/company/00000000/filing-history" }
+}
